@@ -49,10 +49,8 @@ contours = filter(lambda cont: cv2.contourArea(cont) > 10000, contours)
 rects = []
 for cont in contours:
     rect = cv2.approxPolyDP(cont, 40, True).copy().reshape(-1, 2)
-    print rect
     rects.append(rect)
 
-print rects
 pts = np.array(rects[0], dtype = "float32")
 
 # apply the four point tranform to obtain a "birds eye view" of
