@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # USAGE
 # python transform_example.py --image images/example_01.png --coords "[(73, 239), (356, 117), (475, 265), (187, 443)]"
 # python transform_example.py --image images/example_02.png --coords "[(101, 185), (393, 151), (479, 323), (187, 441)]"
@@ -31,4 +32,6 @@ warped = four_point_transform(image, pts)
 # show the original and warped images
 cv2.imshow("Original", image)
 cv2.imshow("Warped", warped)
+
+cv2.imwrite("warped_image.jpg", warped)
 cv2.waitKey(0)
