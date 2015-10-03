@@ -1,0 +1,1 @@
+our receipt scanner takes an image, transforms it, reads the contents using OCR, and calculates tip
