@@ -6,6 +6,8 @@
 
 # import the necessary packages
 from pyimagesearch.transform import four_point_transform
+from pyimagesearch import imutils
+from skimage.filters import threshold_adaptive
 import numpy as np
 import argparse
 import cv2
@@ -21,41 +23,58 @@ args = vars(ap.parse_args())
 # NOTE: using the 'eval' function is bad form, but for this example
 # let's just roll with it -- in future posts I'll show you how to
 # automatically determine the coordinates without pre-supplying them
+
 image = cv2.imread(args["image"])
+
+ratio = image.shape[0] / 500.0
+if ratio > 1:
+	orig = image.copy()
+	image = imutils.resize(image, height = 500)
 
 MORPH = 9
 CANNY = 84
 HOUGH = 25
 
-img = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-cv2.GaussianBlur(img, (3,3), 0, img)
+img = cv2.GaussianBlur(image, (5,5), 0)
+gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+mask = np.zeros((gray.shape),np.uint8)
+kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(11,11))
+close = cv2.morphologyEx(gray,cv2.MORPH_CLOSE,kernel1)
+# div = np.float32(gray)/(close)
+res = np.uint8(cv2.normalize(gray,gray,0,255,cv2.NORM_MINMAX))
+res2 = cv2.cvtColor(res,cv2.COLOR_GRAY2BGR)
+edges = cv2.Canny(res, 15, 25)
 
-# this is to recognize white on white
-kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(MORPH,MORPH))
-dilated = cv2.dilate(img, kernel)
+_, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+# contours = sorted(contours, key = cv2.contourArea, reverse = True)[:5]
+cv2.drawContours(image, contours, -1, (0, 255, 0), 3)
 
-edges = cv2.Canny(dilated, 0, CANNY, apertureSize=3)
+# loop over the contours
+max_area = 0
+min_area = 10000
+for c in contours:
+	# approximate the contour
+	area = cv2.contourArea(c)
+	if area > min_area:
+		peri = cv2.arcLength(c, True)
+		approx = cv2.approxPolyDP(c, 0.02 * peri, True)
 
-lines = cv2.HoughLinesP(edges, 1,  3.14/180, HOUGH)
-for line in lines[0]:
-	cv2.line(edges, (line[0], line[1]), (line[2], line[3]), (255,0,0), 2, 8)
+		# if our approximated contour has four points, then we
+		# can assume that we have found our screen
+		if area > max_area:
+			rect = approx
+			max_area = area
 
-# finding contours
-_, contours, _ = cv2.findContours(edges.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
-contours = filter(lambda cont: cv2.arcLength(cont, False) > 100, contours)
-contours = filter(lambda cont: cv2.contourArea(cont) > 10000, contours)
-
-# simplify contours down to polygons
-rects = []
-for cont in contours:
-    rect = cv2.approxPolyDP(cont, 40, True).copy().reshape(-1, 2)
-    rects.append(rect)
-
-pts = np.array(rects[0], dtype = "float32")
+# cv2.drawContours(image, [rect], -1, (0, 255, 0), 3)
+# cv2.drawContours(image, [rect],-1,(0,255,0),-1)
 
 # apply the four point tranform to obtain a "birds eye view" of
 # the image
-warped = four_point_transform(image, pts)
+# warped = four_point_transform(image, rect.reshape(4, 2))
+
+warped = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+warped = threshold_adaptive(warped, 300, offset = 10)
+warped = warped.astype("uint8") * 255
 
 # show the original and warped images
 cv2.imshow("Original", image)
