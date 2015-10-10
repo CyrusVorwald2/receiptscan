@@ -23,6 +23,19 @@ args = vars(ap.parse_args())
 # NOTE: using the 'eval' function is bad form, but for this example
 # let's just roll with it -- in future posts I'll show you how to
 # automatically determine the coordinates without pre-supplying them
+def rectify(h):
+  h = h.reshape((4,2))
+  hnew = np.zeros((4,2),dtype = np.float32)
+
+  add = h.sum(1)
+  hnew[0] = h[np.argmin(add)]
+  hnew[2] = h[np.argmax(add)]
+   
+  diff = np.diff(h,axis = 1)
+  hnew[1] = h[np.argmin(diff)]
+  hnew[3] = h[np.argmax(diff)]
+
+  return hnew
 
 image = cv2.imread(args["image"])
 
@@ -31,54 +44,30 @@ if ratio > 1:
 	orig = image.copy()
 	image = imutils.resize(image, height = 500)
 
-MORPH = 9
-CANNY = 84
-HOUGH = 25
+gray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
+blur = cv2.GaussianBlur(gray,(5,5),2 )
+thresh = cv2.adaptiveThreshold(blur,255,1,1,11,1)
 
-img = cv2.GaussianBlur(image, (5,5), 0)
-gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-mask = np.zeros((gray.shape),np.uint8)
-kernel1 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(11,11))
-close = cv2.morphologyEx(gray,cv2.MORPH_CLOSE,kernel1)
-# div = np.float32(gray)/(close)
-res = np.uint8(cv2.normalize(gray,gray,0,255,cv2.NORM_MINMAX))
-res2 = cv2.cvtColor(res,cv2.COLOR_GRAY2BGR)
-edges = cv2.Canny(res, 15, 25)
+_, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+contours = sorted(contours, key=cv2.contourArea,reverse=True)[:1]
+# cv2.drawContours(image, contours, -1, (0, 255, 0), 1)
 
-_, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-# contours = sorted(contours, key = cv2.contourArea, reverse = True)[:5]
-cv2.drawContours(image, contours, -1, (0, 255, 0), 3)
-
-# loop over the contours
-max_area = 0
-min_area = 10000
 for c in contours:
-	# approximate the contour
-	area = cv2.contourArea(c)
-	if area > min_area:
-		peri = cv2.arcLength(c, True)
-		approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+    peri = cv2.arcLength(c,True)
+    approx = (cv2.approxPolyDP(c,0.02*peri,True))
 
-		# if our approximated contour has four points, then we
-		# can assume that we have found our screen
-		if area > max_area:
-			rect = approx
-			max_area = area
+    box = np.int0(approx)
+    # cv2.drawContours(im,[box],0,(255,255,0),6)
+    # imx = cv2.resize(im,(1000,600))
+    # cv2.imshow('a',imx)      
+    
+    # h = np.array([ [0,0],[449,0],[449,449],[0,449] ],np.float32)
 
-# cv2.drawContours(image, [rect], -1, (0, 255, 0), 3)
-# cv2.drawContours(image, [rect],-1,(0,255,0),-1)
+    # transform = cv2.getPerspectiveTransform(approx,h)
+    # warp = cv2.warpPerspective(image,transform,(450,450))
 
-# apply the four point tranform to obtain a "birds eye view" of
-# the image
-# warped = four_point_transform(image, rect.reshape(4, 2))
+image = cv2.drawContours(image, [box], -1, (0, 255, 0), 1)
 
-warped = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-warped = threshold_adaptive(warped, 300, offset = 10)
-warped = warped.astype("uint8") * 255
-
-# show the original and warped images
 cv2.imshow("Original", image)
-cv2.imshow("Warped", warped)
-
-cv2.imwrite(args["outputfile"], warped)
+# cv2.imshow("Warped", warp)
 cv2.waitKey(0)
