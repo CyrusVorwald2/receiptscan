@@ -44,30 +44,30 @@ if ratio > 1:
 	orig = image.copy()
 	image = imutils.resize(image, height = 500)
 
+#preprocessing
 gray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
-blur = cv2.GaussianBlur(gray,(5,5),2 )
-thresh = cv2.adaptiveThreshold(blur,255,1,1,11,1)
+gray = cv2.GaussianBlur(gray,(5,5),2 )
+kernel = np.ones((11,11),'uint8')
+# dilated = cv2.dilate(gray,kernel, iterations = 2)
+opening = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel)
+# closing = cv2.morphologyEx(dilated, cv2.MORPH_CLOSE, kernel)
+ret,thresh = cv2.threshold(opening,127,255,0)
+edges = cv2.Canny(opening, 150, 250, apertureSize=3)
 
 _, contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-contours = sorted(contours, key=cv2.contourArea,reverse=True)[:1]
-# cv2.drawContours(image, contours, -1, (0, 255, 0), 1)
-
+contours = filter(lambda cont: cv2.arcLength(cont, False), contours)
+# cv2.drawContours(image, contours, -1, (0, 255, 0), 2)
+approximated_contours = []
 for c in contours:
-    peri = cv2.arcLength(c,True)
-    approx = (cv2.approxPolyDP(c,0.02*peri,True))
+	area = cv2.contourArea(c)
+	peri = cv2.arcLength(c, True)
+	approx = cv2.approxPolyDP(c, 0.02 * peri, True).reshape(-1, 2)
+	approximated_contours.append(approx)
 
-    box = np.int0(approx)
-    # cv2.drawContours(im,[box],0,(255,255,0),6)
-    # imx = cv2.resize(im,(1000,600))
-    # cv2.imshow('a',imx)      
-    
-    # h = np.array([ [0,0],[449,0],[449,449],[0,449] ],np.float32)
-
-    # transform = cv2.getPerspectiveTransform(approx,h)
-    # warp = cv2.warpPerspective(image,transform,(450,450))
-
-image = cv2.drawContours(image, [box], -1, (0, 255, 0), 1)
+approximated_contours = sorted(approximated_contours, key=cv2.contourArea,reverse=True)[:1]
+warped = four_point_transform(image, approximated_contours[0].reshape(4, 2))
+image = cv2.drawContours(image, approximated_contours, -1, (255, 0, 0), 2)
 
 cv2.imshow("Original", image)
-# cv2.imshow("Warped", warp)
+cv2.imshow("Warped", warped)
 cv2.waitKey(0)
